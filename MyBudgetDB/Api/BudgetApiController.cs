@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using MyBudgetDB.Attributes;
+using MyBudgetDB.Authorization;
 using MyBudgetDB.Data;
 using MyBudgetDB.Models.BudgetCommands;
 using MyBudgetDB.Services;
@@ -20,7 +21,8 @@ namespace MyBudgetDB.Api
         private readonly BudgetService _budgetService;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly ILogger _log;
-        
+        private readonly IAuthorizationService _authService;
+
         public BudgetApiController(
             BudgetService service, 
             ILogger<BudgetApiController> log,
@@ -30,6 +32,7 @@ namespace MyBudgetDB.Api
             _budgetService = service;
             _log = log;
             _userManager = userManager;
+            _authService = authService;
         }
 
         [ResponseCache(NoStore = true)]
@@ -37,11 +40,7 @@ namespace MyBudgetDB.Api
         public async Task<IActionResult> GetBudgets()
         {
             var user = await _userManager.GetUserAsync(User);
-            if (user == null)
-            {
-                return Unauthorized();
-            }
-            var budgets = _budgetService.GetBudgetsBrief(user.Id);
+            var budgets = _budgetService.GetBudgetsBrief(user.Id, User.HasClaim(c => c.Type == Claims.IsAdmin));
             return Ok(budgets);
         }
 
@@ -71,18 +70,29 @@ namespace MyBudgetDB.Api
 
         [EnsureBudgetExist, AddLastModifiedHeader, ValidateModel]
         [HttpPost("edit/{id}")] //need the id parameter to check EnsureBudgetExistAttribute
-        public IActionResult Edit(int id, [FromBody] UpdateBudgetCommand cmd)
+        public async Task<IActionResult> Edit(int id, [FromBody] UpdateBudgetCommand cmd)
         {
+            var budget = _budgetService.GetBudget(id);
+            var authResult = await _authService.AuthorizeAsync(User, budget, "CanViewBudget");
+            if (!authResult.Succeeded)
+            {
+                return Forbid();
+            }
             _budgetService.UpdateBudget(cmd);
             var newBudget = _budgetService.GetBudget(cmd.BudgetId);
             return Ok(newBudget);
         }
 
         [HttpDelete("delete/{id}"), EnsureBudgetExist, AddLastModifiedHeader]
-        public IActionResult Delete(int id)
+        public async Task<IActionResult> Delete(int id)
         {
+            var budget = _budgetService.GetBudget(id);
+            var authResult = await _authService.AuthorizeAsync(User, budget, "CanViewBudget");
+            if (!authResult.Succeeded)
+            {
+                return Forbid();
+            }
             _budgetService.DeleteBudget(id);
-
             return Ok();
         }
     }

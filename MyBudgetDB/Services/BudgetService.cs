@@ -4,7 +4,6 @@ using System.Linq;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using MyBudgetDB.Authorization;
 using MyBudgetDB.Data;
 using MyBudgetDB.Models.BudgetCommands;
 using MyBudgetDB.Models.FilterModels;
